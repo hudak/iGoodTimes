@@ -1,0 +1,4 @@
+[tools]
+wrangler = { version = "latest", allow_builds = ["esbuild", "sharp", "workerd"] }
+node = "22"
+pnpm = "latest"
