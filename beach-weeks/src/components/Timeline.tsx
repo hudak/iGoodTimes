@@ -21,8 +21,8 @@ export default function Timeline({ filteredWeeks }: Props) {
     if (filteredWeeks?.length) {
       const lastYear = parseInt(filteredWeeks[filteredWeeks.length - 1].startDate.slice(0, 4));
       ensureYear(lastYear);
+      topRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
-    topRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, [filteredWeeks, ensureYear]);
 
   useEffect(() => {
