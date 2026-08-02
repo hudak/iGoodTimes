@@ -9,7 +9,8 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "test": "vitest run",
-    "generate": "node --experimental-strip-types scripts/generate.ts"
+    "generate": "node --experimental-strip-types scripts/generate.ts",
+    "deploy": "pnpm build && wrangler pages deploy --branch=dev"
   },
   "dependencies": {
     "react": "^19.2.8",
