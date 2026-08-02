@@ -1,3 +1,7 @@
+[tasks.deploy]
+run = "cd beach-weeks && pnpm build && wrangler pages deploy --branch=dev"
+description = "Build + deploy to Cloudflare Pages (dev branch)"
+
 [tools]
 wrangler = { version = "latest", allow_builds = ["esbuild", "sharp", "workerd"] }
 node = "22"
