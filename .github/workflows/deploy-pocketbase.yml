@@ -1,0 +1,26 @@
+name: Deploy PocketBase to Railway
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "pocketbase/**"
+      - "mise.toml"
+      - ".github/workflows/deploy-pocketbase.yml"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Installs the exact `railway` CLI version pinned in mise.toml, so this
+      # deploy uses the same tool version a developer gets locally via
+      # `mise install` (see design.md - Decisions - CI/CD: GitHub Actions -> Railway).
+      - uses: jdx/mise-action@v2
+
+      - name: Deploy to Railway
+        working-directory: pocketbase
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: railway up --service pocketbase --detach

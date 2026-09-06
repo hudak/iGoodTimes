@@ -1,0 +1,52 @@
+import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import type { RecordModel } from 'pocketbase';
+import { pb } from '../services/pocketbaseClient';
+
+interface AuthContextValue {
+  user: RecordModel | null;
+  isAuthenticated: boolean;
+  requestOtp: (email: string) => Promise<string>;
+  confirmOtp: (otpId: string, code: string) => Promise<void>;
+  signOut: () => void;
+}
+
+const AuthContext = createContext<AuthContextValue | null>(null);
+
+export function AuthProvider({ children }: { children: ReactNode }) {
+  // pb.authStore persists to localStorage and rehydrates on load, so a
+  // signed-in person stays signed in across reloads without extra code here.
+  const [user, setUser] = useState<RecordModel | null>(pb.authStore.record);
+
+  useEffect(() => {
+    return pb.authStore.onChange(() => {
+      setUser(pb.authStore.record);
+    });
+  }, []);
+
+  async function requestOtp(email: string): Promise<string> {
+    const { otpId } = await pb.collection('users').requestOTP(email);
+    return otpId;
+  }
+
+  async function confirmOtp(otpId: string, code: string): Promise<void> {
+    await pb.collection('users').authWithOTP(otpId, code);
+  }
+
+  function signOut(): void {
+    pb.authStore.clear();
+  }
+
+  return (
+    <AuthContext.Provider
+      value={{ user, isAuthenticated: !!user, requestOtp, confirmOtp, signOut }}
+    >
+      {children}
+    </AuthContext.Provider>
+  );
+}
+
+export function useAuth(): AuthContextValue {
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error('useAuth must be used within an AuthProvider');
+  return ctx;
+}

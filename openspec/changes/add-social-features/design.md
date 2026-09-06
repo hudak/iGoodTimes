@@ -33,7 +33,7 @@ All schema is defined as PocketBase JS migrations (`pb_migrations/*.js`), checke
 **`registrations`** (implements `beach-week-registration`)
 - Fields: `beach_week_n` (number), `registered_by` (relation → `users`, required), `attendees` (text, required)
 - Unique index on (`beach_week_n`, `registered_by`) — enforces "editable in place, one registration per person per week" at the DB level.
-- API rules: `listRule`/`viewRule`: `@request.auth.id != ""` (any signed-in person can read all registrations — needed so the sign-up UI can show "who's already registered," mirroring the original plan's "read all" policy). `createRule`: `@request.auth.id != "" && @request.data.registered_by = @request.auth.id`. `updateRule`/`deleteRule`: `@request.auth.id != "" && registered_by = @request.auth.id`.
+- API rules: `listRule`/`viewRule`: `@request.auth.id != ""` (any signed-in person can read all registrations — needed so the sign-up UI can show "who's already registered," mirroring the original plan's "read all" policy). `createRule`: `@request.auth.id != "" && @request.body.registered_by = @request.auth.id`. `updateRule`/`deleteRule`: `@request.auth.id != "" && registered_by = @request.auth.id`. (Verified against PocketBase 0.40.2: the submitted-body reference is `@request.body.<field>`, not `@request.data.<field>`.)
 
 **`room_assignments`** (implements `room-assignment`)
 - Fields: `beach_week_n` (number), `room_name` (**select**, required, fixed values: `Downstairs Primary`, `"Old People" Room`, `Upstairs Primary`, `Bunk Beds`, `Upstairs Front Room`, `Media Room`), `person` (relation → `users`, optional), `label` (text, optional), `added_by` (relation → `users`, required)
@@ -47,7 +47,9 @@ All schema is defined as PocketBase JS migrations (`pb_migrations/*.js`), checke
 - Unique index on (`beach_week_n`, `date`).
 - API rules: same registration-gate shape as `room_assignments`.
 
-Exact PocketBase rule syntax (the `@collection.<name>.<field> ?=` cross-collection back-reference form) should be verified against the installed PocketBase version while writing the migration — flagged as an implementation task, not a design ambiguity; the access model itself (gate on an existing `registrations` row for that week) is fixed by the specs and doesn't change if the syntax differs slightly.
+Exact PocketBase rule syntax (the `@collection.<name>.<field> ?=` cross-collection back-reference form) has been verified against PocketBase 0.40.2 by creating the collections against a live instance and confirming denial for a second, non-registered test account across all four gated operations (list/view/create/update) on both `room_assignments` and `notes` — see `pocketbase/pb_migrations/`.
+
+`users` also needed one correction from the default PocketBase setup: the collection ships with `createRule: ""` (open self-registration) and password auth enabled. A dedicated migration (`1788600000_configure_users_auth.js`) sets `createRule` to `null` (superuser-only creation, i.e. admin-managed) and disables `passwordAuth` while enabling `otp`, so there is no self-service or password-based path at all — verified live: unauthenticated record creation on `users` is rejected, and password sign-in for an admin-created account is rejected while OTP sign-in for the same account succeeds.
 
 ### Auth flow
 
@@ -75,7 +77,7 @@ Exact PocketBase rule syntax (the `@collection.<name>.<field> ?=` cross-collecti
 - Local tool versions (`pocketbase`, `railway`) are managed via **mise**, consistent with this repo's existing use of mise for `node`/`pnpm`/`wrangler` (see `mise.toml`). Add `pocketbase` and `railway` to `[tools]` — both are in mise's core registry (`github:pocketbase/pocketbase` and `github:railwayapp/cli` respectively), so no custom plugin is needed; `mise install` pulls the pinned versions for anyone cloning the repo.
 - Local PocketBase run via the mise-installed binary — either directly (`pocketbase serve --dir ./pb_data_local`) or wrapped in a `mise run` task (e.g. `mise run pb:serve`, mirroring the existing `mise run deploy` task pattern) — using the same `pb_migrations/*.js` files, so local schema always matches what's deployed.
 - A local `.env` sets `VITE_POCKETBASE_URL=http://127.0.0.1:8090` so the frontend points at the local instance instead of Railway.
-- SMTP for local OTP emails: PocketBase logs the OTP to its own console/log in dev when SMTP isn't configured, so local development doesn't require setting up a real mail provider (documented in tasks.md as the local setup default; a real SMTP provider is only needed for Railway).
+- SMTP for local OTP emails: PocketBase logs the full rendered email (OTP code included) to its own console when SMTP isn't configured — **but only when run with `--dev`** (verified: without `--dev` the OTP request still succeeds but nothing is logged). The `pb:serve` mise task passes `--dev` for exactly this reason, so local development never requires a real mail provider; a real SMTP provider is only needed for Railway.
 
 ## Risks / Trade-offs
 

@@ -2,7 +2,17 @@
 run = "cd beach-weeks && pnpm build && wrangler pages deploy --branch=dev"
 description = "Build + deploy to Cloudflare Pages (dev branch)"
 
+[tasks."pb:serve"]
+run = "pocketbase serve --dev --dir ./pocketbase/pb_data_local --migrationsDir ./pocketbase/pb_migrations --hooksDir ./pocketbase/pb_hooks"
+description = "Run PocketBase locally with the repo's migrations+hooks (Admin UI at http://127.0.0.1:8090/_/). --dev prints OTP codes to this log since no SMTP is configured locally."
+
+[tasks."pb:deploy"]
+run = "railway up --service pocketbase"
+description = "Deploy the PocketBase service to Railway"
+
 [tools]
 wrangler = { version = "latest", allow_builds = ["esbuild", "sharp", "workerd"] }
 node = "22"
 pnpm = "latest"
+pocketbase = "0.40.2"
+railway = "5.49.2"

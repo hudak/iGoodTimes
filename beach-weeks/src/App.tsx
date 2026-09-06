@@ -3,9 +3,15 @@ import CountdownBanner from './components/CountdownBanner';
 import SearchBar from './components/SearchBar';
 import Timeline from './components/Timeline';
 import type { BeachWeek } from './data/types';
+import { useAuth } from './auth/AuthContext';
+import SignInForm from './auth/SignInForm';
+import SocialPanel from './social/SocialPanel';
 
 export default function App() {
   const [filteredWeeks, setFilteredWeeks] = useState<BeachWeek[] | null>(null);
+  // The public calendar above never checks auth state — only the section
+  // below does (specs/identity/spec.md - "Public calendar requires no authentication").
+  const { isAuthenticated } = useAuth();
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100">
@@ -22,6 +28,12 @@ export default function App() {
           </p>
         )}
         <Timeline filteredWeeks={filteredWeeks} />
+
+        {isAuthenticated ? <SocialPanel /> : (
+          <section className="mt-8 border-t pt-6">
+            <SignInForm />
+          </section>
+        )}
       </div>
     </div>
   );
