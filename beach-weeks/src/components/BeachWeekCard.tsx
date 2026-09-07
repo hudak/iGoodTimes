@@ -10,9 +10,14 @@ interface Props {
   week: BeachWeek;
   isCurrent: boolean;
   isNext: boolean;
+  // Omitted entirely when signed out, so the public calendar never checks
+  // auth state (specs/identity/spec.md - "Public calendar requires no authentication").
+  registered?: boolean;
+  onToggleRegister?: () => void;
+  onManage?: () => void;
 }
 
-export default function BeachWeekCard({ week, isCurrent, isNext }: Props) {
+export default function BeachWeekCard({ week, isCurrent, isNext, registered, onToggleRegister, onManage }: Props) {
   const today = new Date().toISOString().slice(0, 10);
   const isPast = week.endDate < today;
 
@@ -51,6 +56,19 @@ export default function BeachWeekCard({ week, isCurrent, isNext }: Props) {
           )}
         </div>
       </div>
+      {onToggleRegister && (
+        <div className="flex items-center gap-3 mt-2 pt-2 border-t border-slate-100 dark:border-slate-700">
+          <label className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-300">
+            <input type="checkbox" checked={registered ?? false} onChange={onToggleRegister} />
+            I'm going
+          </label>
+          {registered && onManage && (
+            <button onClick={onManage} className="text-xs text-blue-600 dark:text-blue-400 underline">
+              Manage →
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

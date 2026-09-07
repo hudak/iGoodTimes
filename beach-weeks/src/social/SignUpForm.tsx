@@ -1,75 +1,43 @@
-import { useEffect, useState } from 'react';
-import type { RecordModel } from 'pocketbase';
-import { pb } from '../services/pocketbaseClient';
+import { useState } from 'react';
 import { useAuth } from '../auth/AuthContext';
+import { useWeekRegistrations } from './registrations';
 
 export default function SignUpForm({
   weekN,
-  registration,
-  loading,
-  refetch,
+  hasRegistration,
+  onToggle,
 }: {
   weekN: number;
-  registration: RecordModel | null;
-  loading: boolean;
-  refetch: () => Promise<void>;
+  hasRegistration: boolean;
+  onToggle: () => Promise<void>;
 }) {
   const { user } = useAuth();
-  const [attendees, setAttendees] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { people, refetch } = useWeekRegistrations(weekN);
+  const [busy, setBusy] = useState(false);
 
-  useEffect(() => {
-    setAttendees(registration?.attendees ?? '');
-  }, [registration]);
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!user) return;
-    setSaving(true);
-    setError(null);
+  async function handleToggle() {
+    setBusy(true);
     try {
-      if (registration) {
-        // Edit in place: specs/beach-week-registration/spec.md - "Registration is editable in place".
-        await pb.collection('registrations').update(registration.id, { attendees });
-      } else {
-        await pb.collection('registrations').create({
-          beach_week_n: weekN,
-          registered_by: user.id,
-          attendees,
-        });
-      }
+      await onToggle();
       await refetch();
-    } catch {
-      setError('Could not save your sign-up. Please try again.');
     } finally {
-      setSaving(false);
+      setBusy(false);
     }
   }
 
-  if (loading) return <p className="text-sm text-slate-500">Loading…</p>;
+  const others = people.filter((p) => p.id !== user?.id);
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-2 max-w-md">
-      <label className="text-sm text-slate-600 dark:text-slate-300">
-        Who's coming for this week? (yourself, plus anyone else — kids and guests are fine as free text)
+    <div className="flex flex-col gap-2">
+      <label className="flex items-center gap-2 text-sm">
+        <input type="checkbox" checked={hasRegistration} disabled={busy} onChange={handleToggle} />
+        I'm going
       </label>
-      <textarea
-        value={attendees}
-        onChange={(e) => setAttendees(e.target.value)}
-        rows={3}
-        className="border rounded px-2 py-1 bg-white dark:bg-slate-800"
-        placeholder="e.g. Mike & Sarah + kids Emma and Jack"
-        required
-      />
-      {error && <p className="text-xs text-red-600">{error}</p>}
-      <button
-        type="submit"
-        disabled={saving}
-        className="self-start bg-blue-600 text-white rounded px-3 py-1 text-sm disabled:opacity-50"
-      >
-        {registration ? 'Update sign-up' : 'Sign up'}
-      </button>
-    </form>
+      {others.length > 0 && (
+        <p className="text-xs text-slate-500">
+          Also going: {others.map((p) => p.name || p.email).join(', ')}
+        </p>
+      )}
+    </div>
   );
 }

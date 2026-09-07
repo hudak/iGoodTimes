@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ClientResponseError, type RecordModel } from 'pocketbase';
+import type { RecordModel } from 'pocketbase';
 import { isAbortError, pb } from '../services/pocketbaseClient';
 import { useAuth } from '../auth/AuthContext';
 import type { BeachWeek } from '../data/types';
@@ -17,28 +17,20 @@ function datesInWeek(week: BeachWeek): string[] {
 export default function Notes({ week, hasRegistration }: { week: BeachWeek; hasRegistration: boolean }) {
   const { user } = useAuth();
   const dates = datesInWeek(week);
-  const [date, setDate] = useState(dates[0]);
-  const [note, setNote] = useState<RecordModel | null>(null);
-  const [content, setContent] = useState('');
+  const [byDate, setByDate] = useState<Map<string, RecordModel>>(new Map());
+  const [editingDate, setEditingDate] = useState<string | null>(null);
+  const [draft, setDraft] = useState('');
   const [saving, setSaving] = useState(false);
 
   const refetch = useCallback(async () => {
     if (!hasRegistration) return;
     try {
-      const record = await pb
-        .collection('notes')
-        .getFirstListItem(`beach_week_n = ${week.n} && date = "${date}"`);
-      setNote(record);
-      setContent(record.content ?? '');
+      const records = await pb.collection('notes').getFullList({ filter: `beach_week_n = ${week.n}` });
+      setByDate(new Map(records.map((r) => [r.date.slice(0, 10), r])));
     } catch (err) {
-      if (err instanceof ClientResponseError && err.status === 404) {
-        setNote(null);
-        setContent('');
-      } else if (!isAbortError(err)) {
-        throw err;
-      }
+      if (!isAbortError(err)) throw err;
     }
-  }, [week.n, date, hasRegistration]);
+  }, [week.n, hasRegistration]);
 
   useEffect(() => {
     refetch();
@@ -52,58 +44,83 @@ export default function Notes({ week, hasRegistration }: { week: BeachWeek; hasR
   }, [refetch]);
 
   if (!hasRegistration) {
-    return (
-      <p className="text-sm text-slate-500">Sign up for this week first to see and write notes.</p>
-    );
+    return <p className="text-sm text-slate-500">Check in for this week first to see and write plans.</p>;
   }
 
-  async function handleBlur() {
-    if (!user || content === (note?.content ?? '')) return;
+  function startEditing(date: string) {
+    setEditingDate(date);
+    setDraft(byDate.get(date)?.content ?? '');
+  }
+
+  async function handleSave(date: string) {
+    if (!user) return;
     setSaving(true);
     try {
-      if (note) {
-        const updated = await pb.collection('notes').update(note.id, {
-          content,
-          updated_by: user.id,
-        });
-        setNote(updated);
+      const existing = byDate.get(date);
+      if (existing) {
+        await pb.collection('notes').update(existing.id, { content: draft, updated_by: user.id });
       } else {
-        const created = await pb.collection('notes').create({
+        await pb.collection('notes').create({
           beach_week_n: week.n,
           date,
-          content,
+          content: draft,
           created_by: user.id,
           updated_by: user.id,
         });
-        setNote(created);
       }
+      await refetch();
+      setEditingDate(null);
     } finally {
       setSaving(false);
     }
   }
 
   return (
-    <div className="flex flex-col gap-2 max-w-md">
-      <select
-        value={date}
-        onChange={(e) => setDate(e.target.value)}
-        className="border rounded px-2 py-1 bg-white dark:bg-slate-800 self-start"
-      >
-        {dates.map((d) => (
-          <option key={d} value={d}>
-            {d}
-          </option>
-        ))}
-      </select>
-      <textarea
-        value={content}
-        onChange={(e) => setContent(e.target.value)}
-        onBlur={handleBlur}
-        rows={6}
-        className="border rounded px-2 py-1 bg-white dark:bg-slate-800"
-        placeholder="Notes for this day…"
-      />
-      {saving && <p className="text-xs text-slate-400">Saving…</p>}
+    <div className="flex flex-col gap-3">
+      {dates.map((date) => {
+        const record = byDate.get(date);
+        const isEditing = editingDate === date;
+        return (
+          <div key={date} className="border rounded-lg p-3">
+            <div className="flex items-center justify-between gap-2">
+              <span className="font-medium text-sm">{date}</span>
+              {!isEditing && (
+                <button onClick={() => startEditing(date)} className="text-xs text-blue-600 underline">
+                  {record?.content ? 'Edit' : 'Add'}
+                </button>
+              )}
+            </div>
+            {isEditing ? (
+              <div className="flex flex-col gap-2 mt-2">
+                <textarea
+                  value={draft}
+                  onChange={(e) => setDraft(e.target.value)}
+                  rows={3}
+                  autoFocus
+                  className="border rounded px-2 py-1 bg-white dark:bg-slate-800 text-sm"
+                  placeholder="What's the plan for this day?"
+                />
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => handleSave(date)}
+                    disabled={saving}
+                    className="text-xs bg-blue-600 text-white rounded px-2 py-1 disabled:opacity-50"
+                  >
+                    Save
+                  </button>
+                  <button onClick={() => setEditingDate(null)} className="text-xs text-slate-500">
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-slate-600 dark:text-slate-300 mt-1">
+                {record?.content || <span className="text-slate-400">empty</span>}
+              </p>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }

@@ -13,17 +13,16 @@ migrate((app) => {
         maxSelect: 1,
         cascadeDelete: true,
       },
-      { name: "attendees", type: "text", required: true },
     ],
     indexes: [
       "CREATE UNIQUE INDEX idx_registrations_week_person ON registrations (beach_week_n, registered_by)",
     ],
-    // Any signed-in person can read all registrations (so the sign-up UI can show who's already registered).
+    // Any signed-in person can read all registrations (so the sign-up UI can show who's already checked in).
     listRule: '@request.auth.id != ""',
     viewRule: '@request.auth.id != ""',
-    // A person may only create/edit/delete their own registration.
+    // A person may only create/delete their own registration - it's a
+    // check-in checkbox, so there's nothing to update in place.
     createRule: '@request.auth.id != "" && @request.body.registered_by = @request.auth.id',
-    updateRule: '@request.auth.id != "" && registered_by = @request.auth.id',
     deleteRule: '@request.auth.id != "" && registered_by = @request.auth.id',
   });
 

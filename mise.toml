@@ -3,7 +3,11 @@ run = "cd beach-weeks && pnpm build && wrangler pages deploy --branch=dev"
 description = "Build + deploy to Cloudflare Pages (dev branch)"
 
 [tasks."pb:serve"]
-run = "pocketbase serve --dev --dir ./pocketbase/pb_data_local --migrationsDir ./pocketbase/pb_migrations --hooksDir ./pocketbase/pb_hooks"
+# RESEND_TOKEN is deliberately unset here even if it's present in the
+# environment (e.g. via mise.local.toml for other tasks) - local dev must
+# never attempt a real SMTP send; it should always fall back to logging
+# the OTP code to this console instead (see pb_migrations/1788600004_configure_smtp.js).
+run = "env -u RESEND_TOKEN pocketbase serve --dev --dir ./pocketbase/pb_data_local --migrationsDir ./pocketbase/pb_migrations --hooksDir ./pocketbase/pb_hooks"
 description = "Run PocketBase locally with the repo's migrations+hooks (Admin UI at http://127.0.0.1:8090/_/). --dev prints OTP codes to this log since no SMTP is configured locally."
 
 [tasks."pb:deploy"]

@@ -1,77 +1,86 @@
-import { useMemo, useState } from 'react';
-import { getBeachWeeks, getNextWeek } from '../services/beachWeeksService';
+import { useState } from 'react';
+import { getBeachWeeks } from '../services/beachWeeksService';
 import { useAuth } from '../auth/AuthContext';
-import { useRegistration } from './useRegistration';
+import { pb } from '../services/pocketbaseClient';
 import SignUpForm from './SignUpForm';
 import RoomAssignments from './RoomAssignments';
 import Notes from './Notes';
 
-type Tab = 'signup' | 'rooms' | 'notes';
+type Tab = 'rooms' | 'notes';
 
-export default function SocialPanel() {
-  const { user, signOut } = useAuth();
-  const weeks = useMemo(() => getBeachWeeks(), []);
-  const [weekN, setWeekN] = useState(() => getNextWeek()?.n ?? weeks[0]?.n);
-  const [tab, setTab] = useState<Tab>('signup');
+export default function SocialPanel({
+  weekN,
+  registrations,
+  toggleRegistration,
+  onClose,
+}: {
+  weekN: number;
+  registrations: Map<number, string> | null;
+  toggleRegistration: (weekN: number) => Promise<void>;
+  onClose: () => void;
+}) {
+  const { user } = useAuth();
+  const [tab, setTab] = useState<Tab>('rooms');
+  const [nameDraft, setNameDraft] = useState(user?.name ?? '');
+  const [savingName, setSavingName] = useState(false);
 
-  const week = weeks.find((w) => w.n === weekN);
-  // Fetched once here, not per-tab, so PocketBase's request auto-cancellation
-  // (same collection+method in flight from two places aborts one of them)
-  // never races two components against `registrations` at the same time.
-  const { registration, hasRegistration, loading, refetch } = useRegistration(weekN);
+  const week = getBeachWeeks().find((w) => w.n === weekN);
+  const hasRegistration = registrations?.has(weekN) ?? false;
 
   if (!week) return null;
 
+  async function saveName() {
+    if (!user) return;
+    setSavingName(true);
+    try {
+      const updated = await pb.collection('users').update(user.id, { name: nameDraft });
+      // .update() doesn't refresh pb.authStore on its own, so the header and
+      // this field would keep showing the stale name until a full reload.
+      pb.authStore.save(pb.authStore.token, updated);
+    } finally {
+      setSavingName(false);
+    }
+  }
+
   return (
-    <section className="mt-8 border-t pt-6 flex flex-col gap-4">
+    <section className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Beach Week Plans</h2>
-        <div className="text-xs text-slate-500 flex items-center gap-2">
-          {user?.email}
-          <button onClick={signOut} className="underline">
-            Sign out
-          </button>
-        </div>
+        <h2 className="text-lg font-semibold">
+          {week.startDate} – {week.endDate}
+        </h2>
+        <button onClick={onClose} className="text-xs text-slate-500 underline">
+          Close
+        </button>
       </div>
 
-      <label className="text-sm text-slate-600 dark:text-slate-300">
-        Week
-        <select
-          value={weekN}
-          onChange={(e) => setWeekN(Number(e.target.value))}
-          className="ml-2 border rounded px-2 py-1 bg-white dark:bg-slate-800"
-        >
-          {weeks.map((w) => (
-            <option key={w.n} value={w.n}>
-              {w.startDate} – {w.endDate}
-            </option>
-          ))}
-        </select>
+      <label className="flex items-center gap-2 text-xs text-slate-500">
+        Your name
+        <input
+          value={nameDraft}
+          onChange={(e) => setNameDraft(e.target.value)}
+          onBlur={saveName}
+          disabled={savingName}
+          placeholder={user?.email}
+          className="border rounded px-2 py-0.5 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-slate-100"
+        />
       </label>
 
+      <SignUpForm weekN={weekN} hasRegistration={hasRegistration} onToggle={() => toggleRegistration(weekN)} />
+
       <nav className="flex gap-3 text-sm border-b">
-        {(['signup', 'rooms', 'notes'] as const).map((t) => (
+        {(['rooms', 'notes'] as const).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
             className={`pb-2 ${tab === t ? 'border-b-2 border-blue-600 font-medium' : 'text-slate-500'}`}
           >
-            {t === 'signup' ? 'Sign Up' : t === 'rooms' ? 'Rooms' : 'Notes'}
+            {t === 'rooms' ? 'Rooms' : 'Day Plans'}
           </button>
         ))}
       </nav>
 
-      {loading ? (
-        <p className="text-sm text-slate-500">Loading…</p>
-      ) : (
-        <>
-          {tab === 'signup' && (
-            <SignUpForm weekN={weekN} registration={registration} loading={loading} refetch={refetch} />
-          )}
-          {tab === 'rooms' && <RoomAssignments weekN={weekN} hasRegistration={hasRegistration} />}
-          {tab === 'notes' && <Notes week={week} hasRegistration={hasRegistration} />}
-        </>
-      )}
+      {tab === 'rooms' && <RoomAssignments weekN={weekN} hasRegistration={hasRegistration} />}
+      {tab === 'notes' && <Notes week={week} hasRegistration={hasRegistration} />}
     </section>
   );
 }

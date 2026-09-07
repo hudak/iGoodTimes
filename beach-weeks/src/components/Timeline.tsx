@@ -9,9 +9,13 @@ const nextWeek = getNextWeek();
 
 interface Props {
   filteredWeeks: BeachWeek[] | null;
+  // Omitted (undefined) entirely when signed out - see BeachWeekCard.
+  myRegistrations?: Map<number, string> | null;
+  onToggleRegister?: (weekN: number) => void;
+  onManageWeek?: (weekN: number) => void;
 }
 
-export default function Timeline({ filteredWeeks }: Props) {
+export default function Timeline({ filteredWeeks, myRegistrations, onToggleRegister, onManageWeek }: Props) {
   const { years, byYear, loadAfter, ensureYear } = useInfiniteYears();
   const bottomRef = useRef<HTMLDivElement>(null);
   const topRef = useRef<HTMLDivElement>(null);
@@ -62,6 +66,13 @@ export default function Timeline({ filteredWeeks }: Props) {
                   week={week}
                   isCurrent={week.startDate <= today && today <= week.endDate}
                   isNext={week.n === nextWeek?.n}
+                  registered={myRegistrations?.has(week.n)}
+                  onToggleRegister={
+                    myRegistrations !== null && myRegistrations !== undefined && onToggleRegister
+                      ? () => onToggleRegister(week.n)
+                      : undefined
+                  }
+                  onManage={onManageWeek ? () => onManageWeek(week.n) : undefined}
                 />
               ))}
             </div>

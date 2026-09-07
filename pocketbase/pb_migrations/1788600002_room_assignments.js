@@ -8,6 +8,9 @@ migrate((app) => {
   const registrationGate =
     '@request.auth.id != "" && @collection.registrations.beach_week_n ?= beach_week_n && @collection.registrations.registered_by ?= @request.auth.id';
 
+  // One shared, freely-editable text box per (week, room) - like a day plan -
+  // rather than a list of discrete person/label occupant records. Editing or
+  // clearing an occupant is just editing the shared text.
   const collection = new Collection({
     name: "room_assignments",
     type: "base",
@@ -27,26 +30,11 @@ migrate((app) => {
           "Media Room",
         ],
       },
-      {
-        name: "person",
-        type: "relation",
-        required: false,
-        collectionId: "_pb_users_auth_",
-        maxSelect: 1,
-        cascadeDelete: false,
-      },
-      { name: "label", type: "text", required: false },
-      {
-        name: "added_by",
-        type: "relation",
-        required: true,
-        collectionId: "_pb_users_auth_",
-        maxSelect: 1,
-        cascadeDelete: false,
-      },
+      { name: "content", type: "text", required: false },
     ],
-    // Deliberately no unique index / no rule limiting occupants per room_name:
-    // the room-assignment spec requires no capacity or lock enforcement.
+    indexes: [
+      "CREATE UNIQUE INDEX idx_room_assignments_week_room ON room_assignments (beach_week_n, room_name)",
+    ],
     listRule: registrationGate,
     viewRule: registrationGate,
     createRule: registrationGate,

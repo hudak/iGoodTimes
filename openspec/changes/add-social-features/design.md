@@ -26,21 +26,20 @@ PocketBase is a single Go binary embedding SQLite, a built-in auth system, a RES
 All schema is defined as PocketBase JS migrations (`pb_migrations/*.js`), checked into the repo, applied automatically on startup (both locally and on Railway) via `pocketbase migrate up`. This is the single source of truth for collections and rules — no manual Admin UI schema edits in any environment.
 
 **`users`** (PocketBase's built-in auth collection, used directly — no separate `people` table)
-- Fields: PocketBase defaults (`email`, `name`, `verified`, `avatar` optional) — no custom fields needed.
+- Fields: PocketBase defaults (`email`, `name`, `verified`, `avatar` optional) — `name` is exposed in the UI as a self-service display name (`identity` - "An account holder can set their own display name"), shown instead of email wherever people are listed. No custom fields needed.
 - Accounts are created only by an admin via the PocketBase Admin UI ("New record" on `users`, no password set) — satisfies `identity`'s "admin-managed, no self-service" requirement with zero custom code.
 - Auth method: PocketBase's built-in **OTP (one-time password via email)** login — the passwordless mechanism satisfying `identity`'s sign-in requirement. Requires SMTP configured (see Migration Plan).
+- `listRule`/`viewRule` set to `@request.auth.id != ""` (any signed-in person can read all `users`) rather than PocketBase's default `id = @request.auth.id` — needed so the check-in list and room/notes UI can show other people's names, not just your own.
 
 **`registrations`** (implements `beach-week-registration`)
-- Fields: `beach_week_n` (number), `registered_by` (relation → `users`, required), `attendees` (text, required)
-- Unique index on (`beach_week_n`, `registered_by`) — enforces "editable in place, one registration per person per week" at the DB level.
-- API rules: `listRule`/`viewRule`: `@request.auth.id != ""` (any signed-in person can read all registrations — needed so the sign-up UI can show "who's already registered," mirroring the original plan's "read all" policy). `createRule`: `@request.auth.id != "" && @request.body.registered_by = @request.auth.id`. `updateRule`/`deleteRule`: `@request.auth.id != "" && registered_by = @request.auth.id`. (Verified against PocketBase 0.40.2: the submitted-body reference is `@request.body.<field>`, not `@request.data.<field>`.)
+- Fields: `beach_week_n` (number), `registered_by` (relation → `users`, required). **No `attendees` field** — registration is a pure check-in/check-out toggle, not a form.
+- Unique index on (`beach_week_n`, `registered_by`) — one registration per person per week.
+- API rules: `listRule`/`viewRule`: `@request.auth.id != ""` (any signed-in person can see who's checked in for any week). `createRule`: `@request.auth.id != "" && @request.body.registered_by = @request.auth.id`. `deleteRule`: `@request.auth.id != "" && registered_by = @request.auth.id`. No `updateRule` — a checkbox has nothing to edit in place, only create/delete. (Verified against PocketBase 0.40.2: the submitted-body reference is `@request.body.<field>`, not `@request.data.<field>`.)
 
 **`room_assignments`** (implements `room-assignment`)
-- Fields: `beach_week_n` (number), `room_name` (**select**, required, fixed values: `Downstairs Primary`, `"Old People" Room`, `Upstairs Primary`, `Bunk Beds`, `Upstairs Front Room`, `Media Room`), `person` (relation → `users`, optional), `label` (text, optional), `added_by` (relation → `users`, required)
-- `room_name` is a closed enum matching the house's actual rooms, not free text — this removes the free-text-drift concern the original plan flagged (e.g. "Master Bedroom" vs "Master Bdrm" typos) for this field entirely.
-- Validation: exactly one of `person`/`label` must be set (enforced in a `pb_migrations` hook / `onRecordCreate` validation, since PocketBase field rules can't express "at least one of two fields" declaratively).
-- API rules (list/view/create/update/delete, all the same shape): `@request.auth.id != "" && @collection.registrations.beach_week_n ?= beach_week_n && @collection.registrations.registered_by ?= @request.auth.id` — i.e. the acting user must have a `registrations` row for this `beach_week_n`. This is the PocketBase equivalent of the original plan's `EXISTS registration WHERE ...` RLS policy, expressed as a cross-collection back-reference filter.
-- No unique index and no rule blocking multiple occupants per room — matches the "no capacity/lock enforcement" requirement directly in the rule (there simply is no such constraint).
+- Fields: `beach_week_n` (number), `room_name` (**select**, required, fixed values: `Downstairs Primary`, `"Old People" Room`, `Upstairs Primary`, `Bunk Beds`, `Upstairs Front Room`, `Media Room`), `content` (text) — **one shared free-text field per (week, room)**, not a list of person/label occupant records. Editing or clearing an occupant is just editing this text; there's nothing else to build a delete affordance for.
+- Unique index on (`beach_week_n`, `room_name`) — exactly one record per room per week, so "the shared text for this room" is unambiguous.
+- API rules (list/view/create/update/delete, all the same shape): `@request.auth.id != "" && @collection.registrations.beach_week_n ?= beach_week_n && @collection.registrations.registered_by ?= @request.auth.id` — i.e. the acting user must have a `registrations` row for this `beach_week_n`. This is the PocketBase equivalent of the original plan's `EXISTS registration WHERE ...` RLS policy, expressed as a cross-collection back-reference filter. No ownership restriction beyond that — any registered person can edit or clear any room's text, matching "keep the permission model simple and open."
 
 **`notes`** (implements `beach-week-notes`)
 - Fields: `beach_week_n` (number), `date` (date, required), `content` (text), `created_by`/`updated_by` (relation → `users`)
@@ -57,6 +56,12 @@ Exact PocketBase rule syntax (the `@collection.<name>.<field> ?=` cross-collecti
 2. That person visits the app, enters their email, and requests a one-time code (PocketBase OTP endpoint).
 3. PocketBase emails the code via configured SMTP; the person enters it in the app and is signed in, receiving a session token the frontend stores and attaches to subsequent API calls.
 4. The public calendar route tree never checks for a session — only the sign-up, room-assignment, and notes routes do.
+
+### Frontend navigation: no separate week picker
+
+There is no dropdown or standalone "pick a week" control. Each rendered `BeachWeekCard` in the existing infinite-scroll calendar gets a "I'm going" checkbox (rendered only when signed in — `BeachWeekCard` takes the registration state as an optional prop and renders nothing extra when it's absent, so the public calendar's markup is unchanged when signed out). Checking it registers for that week and opens a single shared panel (positioned right below the page header, above the calendar) showing that week's check-in list, rooms, and day plans; a separate "Manage" link on an already-checked card reopens the panel without re-toggling registration. Unchecking removes the registration immediately and, if that week's panel is open, closes it. This replaced an earlier version of this design that used a `<select>` listing every week from 2005-2075 in one dropdown — real-user feedback after using it locally: "dropdown of every week ever is poor UX."
+
+One query (`useMyRegistrations`, fetched once at the app root) covers every rendered card's checkbox state, rather than one query per card.
 
 ### Deployment target: Railway
 

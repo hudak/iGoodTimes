@@ -35,3 +35,14 @@ The system SHALL keep a signed-in person authenticated across page reloads and f
 #### Scenario: Returning to the app while signed in
 - **WHEN** a signed-in person reloads the app or returns later within their session's validity
 - **THEN** they remain signed in without being asked to sign in again
+
+### Requirement: An account holder can set their own display name
+The system SHALL let a signed-in person set or change a display name on their own account, shown instead of their email address wherever people are listed elsewhere in the app.
+
+#### Scenario: Setting a display name
+- **WHEN** a signed-in person sets a display name for themselves
+- **THEN** that name is shown for them (instead of their email) in any list of people, such as who's checked in for a beach week
+
+#### Scenario: No display name set yet
+- **WHEN** a person has not set a display name
+- **THEN** their email address is shown in their place
