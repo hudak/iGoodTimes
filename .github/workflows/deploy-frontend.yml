@@ -1,0 +1,38 @@
+name: Deploy Frontend to Cloudflare Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "beach-weeks/**"
+      - "mise.toml"
+      - ".github/workflows/deploy-frontend.yml"
+
+env:
+  # PocketBase backend's custom domain (see openspec/changes/add-social-features/design.md).
+  VITE_POCKETBASE_URL: https://api.goodtimes.huskytown.net
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Installs the exact node/pnpm/wrangler versions pinned in mise.toml, so
+      # this build matches local dev instead of drifting from whatever a
+      # third-party build image happens to ship.
+      - uses: jdx/mise-action@v2
+
+      - name: Install dependencies
+        working-directory: beach-weeks
+        run: pnpm install
+
+      - name: Build
+        working-directory: beach-weeks
+        run: pnpm build
+
+      - name: Deploy to Cloudflare Pages
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: wrangler pages deploy beach-weeks/dist --project-name=goodtimes --branch=main

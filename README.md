@@ -51,6 +51,12 @@ To deploy by hand instead of waiting on CI (needs `railway login` or `RAILWAY_TO
 mise run pb:deploy
 ```
 
+### Frontend — Cloudflare Pages (production)
+
+Deploys go through [`.github/workflows/deploy-frontend.yml`](.github/workflows/deploy-frontend.yml) (`wrangler pages deploy`) on every push to `main` that touches `beach-weeks/**`, authenticated via the `CLOUDFLARE_API_TOKEN`/`CLOUDFLARE_ACCOUNT_ID` repo secrets — **not** Cloudflare Pages' own git-integration auto-builds, which are disabled on this project.
+
+Why: Cloudflare Pages' dashboard/API "environment variables" feature doesn't reliably inject build-time vars into the actual build process for this project (confirmed: two rebuilds with `VITE_POCKETBASE_URL` configured that way produced a bundle identical to one built *without* it). The GitHub Actions workflow sidesteps this entirely — `VITE_POCKETBASE_URL` is a plain step-level `env:` value read directly by `pnpm build`.
+
 ## Key Commands
 
 | Command | Description |
