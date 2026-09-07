@@ -7,7 +7,7 @@ run = "pocketbase serve --dev --dir ./pocketbase/pb_data_local --migrationsDir .
 description = "Run PocketBase locally with the repo's migrations+hooks (Admin UI at http://127.0.0.1:8090/_/). --dev prints OTP codes to this log since no SMTP is configured locally."
 
 [tasks."pb:deploy"]
-run = "railway up --service pocketbase"
+run = "cd pocketbase && railway up --service goodtimes-pocketbase"
 description = "Deploy the PocketBase service to Railway"
 
 [tools]

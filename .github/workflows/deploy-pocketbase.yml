@@ -23,4 +23,4 @@ jobs:
         working-directory: pocketbase
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-        run: railway up --service pocketbase --detach
+        run: railway up --service goodtimes-pocketbase --detach

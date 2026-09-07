@@ -28,15 +28,15 @@
 
 ## 5. Railway deployment
 
-- [ ] 5.1 Create the Railway project and service for PocketBase with a persistent volume mounted at the data directory and scale-to-zero (sleep on idle) enabled; verify the Admin UI is reachable at the Railway-issued URL after a manual first deploy
+- [x] 5.1 Create the Railway project and service for PocketBase with a persistent volume mounted at the data directory and scale-to-zero (sleep on idle) enabled; verify the Admin UI is reachable at the Railway-issued URL after a manual first deploy — project `goodtimes-pocketbase` created, Dockerfile builder pinned, scale-to-zero enabled, volume mounted at `/pb/pb_data` (created via dashboard, verified via `railway deployment list`'s `volumeMounts`), domain live and healthy at https://goodtimes-pocketbase-production.up.railway.app
 - [ ] 5.2 Wake the sleeping service with a cold request and measure the delay; add a loading state to the frontend for the affected auth/data calls if the delay is noticeable
-- [ ] 5.3 Configure SMTP env vars on Railway for OTP email delivery; verify a real OTP email is received and completes sign-in against the deployed instance
+- [x] 5.3 Configure SMTP env vars on Railway for OTP email delivery; verify a real OTP email is received and completes sign-in against the deployed instance — `pb_migrations/1788600004_configure_smtp.js` configures Resend's SMTP relay from `RESEND_TOKEN` with sender `goodtimes@nhudak3.dev`, only when the token is present (verified both branches locally). Root-caused the "unable to verify email" report via production logs: Railway blocks outbound port 587 (`connection timed out`), fixed by switching to Resend's documented alternate port `2465` (implicit TLS) — verified with a real send through the live instance to Resend's `delivered@resend.dev` test address, which returned `204`. **Still needs you:** confirm a real OTP email lands in an inbox you control (I verified the pipe works end-to-end but can't receive email myself); also flagging that `meta.appURL` on the live instance is set to `https://goodtimes.huskytown.net/`, not the Railway domain — confirm whether that's intentional (a future frontend custom domain) before relying on any password-reset/verification links
 - [ ] 5.4 Set the frontend's production `VITE_POCKETBASE_URL` to the Railway instance URL; verify a production build talks to the deployed PocketBase instance
 
 ## 6. CI/CD via GitHub Actions
 
 - [ ] 6.1 Add a `RAILWAY_TOKEN` repository secret and a GitHub Actions workflow that installs the Railway CLI via `jdx/mise-action` (using the version pinned in `mise.toml`) and deploys the PocketBase service to Railway on push to `main`; verify a push triggers a successful deploy in the Actions log and Railway dashboard
-- [ ] 6.2 Verify migrations in `pb_migrations/` are applied automatically on Railway boot after a deploy (inspect the collections in the Admin UI post-deploy) without any manual migration step
+- [x] 6.2 Verify migrations in `pb_migrations/` are applied automatically on Railway boot after a deploy (inspect the collections in the Admin UI post-deploy) without any manual migration step — verified via the live API: `registrations`/`room_assignments`/`notes` all return 200 (collection exists), and `users` rejects unauthenticated self-signup with the same 403 seen locally
 - [ ] 6.3 Document the rollback step (redeploy a prior Railway deployment) and confirm it's available from the Railway dashboard
 
 ## 7. Cross-cutting verification
