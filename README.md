@@ -37,12 +37,13 @@ Point the frontend at this local instance with `VITE_POCKETBASE_URL=http://127.0
 
 ### Backend — Railway (production)
 
-One-time setup (in the [Railway dashboard](https://railway.app)):
+Provisioned on Railway: project `goodtimes-pocketbase`, built from `pocketbase/Dockerfile`, with a persistent volume at `/pb/pb_data` and **scale-to-zero** enabled (dashboard/API-only setting — not expressible in `railway.json`). Reachable at `https://api.goodtimes.huskytown.net` (a custom domain, kept on its own subdomain of `huskytown.net` so it doesn't collide with the frontend's `goodtimes.huskytown.net`).
 
-1. Create a project + service from `pocketbase/Dockerfile`, with a persistent volume mounted at `/pb/pb_data`.
-2. Turn on **scale-to-zero** (Settings → sleep application) — this is dashboard/API-only, not expressible in `railway.json`.
-3. Set SMTP env vars on the service so OTP sign-in emails actually deliver (locally, PocketBase just logs the code instead — see above).
-4. Generate a **project-scoped** deploy token (Project Settings → Tokens) and add it as the `RAILWAY_TOKEN` secret in this repo's GitHub settings — that's what [`.github/workflows/deploy-pocketbase.yml`](.github/workflows/deploy-pocketbase.yml) uses to deploy on every push to `main` that touches `pocketbase/**`.
+Point a production frontend build at it with `VITE_POCKETBASE_URL=https://api.goodtimes.huskytown.net`.
+
+SMTP (OTP email delivery) goes through Resend via `RESEND_TOKEN` (set as a Railway variable on the service) — see `pb_migrations/1788600004_configure_smtp.js`. Note it uses port `2465`, not the standard `587`: Railway blocks that port outbound.
+
+`RAILWAY_TOKEN` (a project-scoped deploy token, Project Settings → Tokens) is set as this repo's GitHub secret — [`.github/workflows/deploy-pocketbase.yml`](.github/workflows/deploy-pocketbase.yml) uses it to deploy on every push to `main` that touches `pocketbase/**`.
 
 To deploy by hand instead of waiting on CI (needs `railway login` or `RAILWAY_TOKEN` set locally):
 
