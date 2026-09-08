@@ -6,34 +6,34 @@ Beach week calendar for the Gast family. Displays pre-computed beach week dates 
 
 ```
 beach-weeks/          React SPA (Vite + TypeScript + Tailwind)
-pocketbase/           PocketBase backend: migrations (pb_migrations/) and hooks (pb_hooks/)
+pocketbase/           PocketBase backend: migrations (pb_migrations/), hooks (pb_hooks/, currently empty)
 wrangler.toml         Cloudflare Pages deployment config
-mise.toml             Tool versions (Node 22, pnpm, wrangler, pocketbase, railway)
+mise.toml             Tool versions (Node 22, pnpm, wrangler, pocketbase, railway) + dev/deploy tasks
 ```
 
 ## Getting Started
 
 ```bash
 mise install          # install Node, pnpm, wrangler, pocketbase, railway
-cd beach-weeks && pnpm install
-pnpm dev              # http://localhost:5173
+mise run pb:serve      # backend on http://127.0.0.1:8090 (run in one terminal)
+mise run fe:serve      # frontend on http://localhost:5173, pointed at the local backend (run in another)
 ```
 
 ### Backend (PocketBase) — local dev
 
-The social features (sign-up, room assignments, notes) are backed by [PocketBase](https://pocketbase.io), self-hosted on Railway in production. For local development, run it yourself — no cloud account needed:
+The social features (check-in, room assignments, day plans) are backed by [PocketBase](https://pocketbase.io), self-hosted on Railway in production. For local development, run it yourself — no cloud account needed:
 
 ```bash
 mise run pb:serve     # http://127.0.0.1:8090, Admin UI at /_/
 ```
 
-This runs PocketBase against `pocketbase/pb_data_local/` (gitignored) using the migrations in `pocketbase/pb_migrations/` and the validation hooks in `pocketbase/pb_hooks/` — the same schema that ships to Railway. On first run:
+This runs PocketBase against `pocketbase/pb_data_local/` (gitignored) using the migrations in `pocketbase/pb_migrations/` — the same schema that ships to Railway. On first run:
 
 1. Follow the "create your first superuser" URL printed in the terminal (or run `pocketbase superuser upsert you@example.com yourpassword --dir ./pocketbase/pb_data_local`) to get into the Admin UI.
 2. Create test accounts the same way an admin would in production: Admin UI → `users` collection → New record (email only — no self-service signup exists, by design).
 3. Sign in from the app using that email. There's no SMTP configured locally, so the one-time sign-in code isn't emailed — it's printed to the `pb:serve` terminal output instead (the task runs PocketBase with `--dev` for exactly this reason).
 
-Point the frontend at this local instance with `VITE_POCKETBASE_URL=http://127.0.0.1:8090` in `beach-weeks/.env.local`.
+`mise run fe:serve` points the frontend at this local instance automatically (`VITE_POCKETBASE_URL=http://127.0.0.1:8090`) — no `.env.local` needed.
 
 ### Backend — Railway (production)
 

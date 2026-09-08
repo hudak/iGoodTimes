@@ -14,6 +14,10 @@ description = "Run PocketBase locally with the repo's migrations+hooks (Admin UI
 run = "cd pocketbase && railway up --service goodtimes-pocketbase"
 description = "Deploy the PocketBase service to Railway"
 
+[tasks."fe:serve"]
+run = "cd beach-weeks && pnpm install && VITE_POCKETBASE_URL=http://127.0.0.1:8090 pnpm dev"
+description = "Run the frontend locally (http://localhost:5173), pointed at the local PocketBase from `mise run pb:serve`"
+
 [tools]
 wrangler = { version = "latest", allow_builds = ["esbuild", "sharp", "workerd"] }
 node = "22"
