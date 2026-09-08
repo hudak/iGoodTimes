@@ -23,6 +23,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  useEffect(() => {
+    // A persisted token can outlive the account it points to (e.g. local dev
+    // data getting reset). The SDK's own isValid/record checks are purely
+    // client-side (token shape + expiry), so a stale-but-unexpired token
+    // still renders as "signed in" until an API call actually fails - sign
+    // out proactively instead of leaving that broken half-signed-in state.
+    if (!pb.authStore.isValid) return;
+    pb.collection('users')
+      .authRefresh()
+      .catch(() => pb.authStore.clear());
+  }, []);
+
   async function requestOtp(email: string): Promise<string> {
     const { otpId } = await pb.collection('users').requestOTP(email);
     return otpId;
