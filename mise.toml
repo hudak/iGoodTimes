@@ -18,6 +18,57 @@ description = "Deploy the PocketBase service to Railway"
 run = "cd beach-weeks && pnpm install && VITE_POCKETBASE_URL=http://127.0.0.1:8090 pnpm dev"
 description = "Run the frontend locally (http://localhost:5173), pointed at the local PocketBase from `mise run pb:serve`"
 
+[tasks."pb:admin"]
+run = '''
+#!/usr/bin/env bash
+set -euo pipefail
+
+METHOD="${1:?Usage: mise run pb:admin -- METHOD PATH [JSON_BODY] [AUTH_MODE] (e.g. GET /collections/users/records)}"
+API_PATH="${2:?Usage: mise run pb:admin -- METHOD PATH [JSON_BODY] [AUTH_MODE] (e.g. GET /collections/users/records)}"
+BODY="${3:-}"
+# AUTH_MODE: admin (default, logs in as PROD_ADMIN_USER/PASS) | anon (no auth
+# header, for testing unauthenticated/denied-access scenarios) | token (uses
+# $PB_TOKEN as the bearer directly, e.g. a user token from /impersonate)
+AUTH_MODE="${4:-admin}"
+BASE_URL="${PB_ADMIN_URL:-https://api.goodtimes.huskytown.net}"
+
+TOKEN=""
+case "$AUTH_MODE" in
+  admin)
+    : "${PROD_ADMIN_USER:?PROD_ADMIN_USER is not set (expected in mise.local.toml)}"
+    : "${PROD_ADMIN_PASS:?PROD_ADMIN_PASS is not set (expected in mise.local.toml)}"
+    TOKEN=$(curl -sf -X POST "$BASE_URL/api/collections/_superusers/auth-with-password" \
+      -H "Content-Type: application/json" \
+      -d "{\"identity\":\"$PROD_ADMIN_USER\",\"password\":\"$PROD_ADMIN_PASS\"}" \
+      | python3 -c "import json,sys; print(json.load(sys.stdin)['token'])")
+    ;;
+  token)
+    : "${PB_TOKEN:?PB_TOKEN is not set - pass the user/session token to use as the bearer}"
+    TOKEN="$PB_TOKEN"
+    ;;
+  anon)
+    : # no token - an empty/absent bearer is treated as unauthenticated by PocketBase's API rules
+    ;;
+  *)
+    echo "Unknown AUTH_MODE: $AUTH_MODE (expected admin|token|anon)" >&2
+    exit 1
+    ;;
+esac
+
+if [ -n "$BODY" ]; then
+  curl -s -X "$METHOD" "$BASE_URL/api$API_PATH" \
+    -H "Authorization: Bearer $TOKEN" \
+    -H "Content-Type: application/json" \
+    -d "$BODY" \
+    -w '\nHTTP %{http_code}\n'
+else
+  curl -s -X "$METHOD" "$BASE_URL/api$API_PATH" \
+    -H "Authorization: Bearer $TOKEN" \
+    -w '\nHTTP %{http_code}\n'
+fi
+'''
+description = "Call the PocketBase API (default: production). Usage: mise run pb:admin -- METHOD PATH [JSON_BODY] [AUTH_MODE]. AUTH_MODE is admin (default, superuser login via PROD_ADMIN_USER/PASS), anon (no auth), or token (uses $PB_TOKEN as bearer). Set PB_ADMIN_URL=http://127.0.0.1:8090 to target local instead. Credentials/tokens are read from env, never the command line."
+
 [tools]
 wrangler = { version = "latest", allow_builds = ["esbuild", "sharp", "workerd"] }
 node = "22"
