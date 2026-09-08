@@ -1,11 +1,21 @@
 # Backlog
 
-## Email notifications on registration
-When someone registers for a beach week, notify everyone else already registered for that same week via email.
+## Email notifications, bundled with self-service invites
+Notify people by email on relevant activity — someone registering for a beach week they're also registered for, a room assignment change, a new response/note on a beach week they're part of, etc. Bundled here with letting existing members invite new people themselves, since both need the same net-new piece: a `pb_hooks`-triggered custom email sent through the existing Resend SMTP relay (`RESEND_TOKEN`), which today only covers PocketBase's own auth-flow templates.
 
+### Activity notifications
 - Not built into PocketBase — its mail sending only covers auth-flow templates (OTP, password reset, email verification, email-change confirmation, new-location alert).
-- Would require a new `pb_hooks` file: a create hook on `registrations` that queries other registrations for the same `beach_week_n` and sends a custom email to each via the existing Resend SMTP relay (already wired up through `RESEND_TOKEN`).
-- Net new code, not configuration — no existing hook covers this today.
+- Would require new `pb_hooks` files: a create hook on `registrations` that notifies other registrants for the same `beach_week_n`, plus equivalent hooks for room-assignment changes and new notes/responses — each sends a custom email via the existing Resend SMTP relay (already wired up through `RESEND_TOKEN`).
+- Net new code, not configuration — no existing hook covers any of these today.
+- Open question: one hook per trigger (registration, room assignment, notes) vs. a shared notification-sending helper they all call — worth deciding once the actual set of triggers is settled, so the email-sending code isn't duplicated three times.
+
+### Self-service invites
+Today, granting a new person access means gathering their email by hand and adding it to the Cloudflare Zero Trust allowlist (see the identity/Cloudflare Access item below) — a bottleneck that requires one person to track everyone's email and doesn't scale past a very small, static group.
+
+- Idea: let any signed-in member submit an email to invite. A hook calls the Cloudflare API to append that email to the Zero Trust List (needs a new List-edit-scoped API token as a credential). No separate "accept invite" page is needed — once an email is on the List, that person can sign in directly through Cloudflare Access (Google or email PIN).
+- Optionally log invites in a new PocketBase `invites` collection (inviter, invited email, timestamp) for an audit trail of who let whom in.
+- Open question to settle before building: should *any* signed-in member be able to invite, or only specific ones? "Anyone can invite" is probably fine at family-app scale, but it's a deliberate narrowing of the `identity` capability's "admin-managed, no self-service" requirement and should be written down as an explicit spec change, not left implicit.
+- Net new code: an invite endpoint/hook, the Cloudflare API credential, and (optionally) an email to the invitee sent via the same Resend relay as registration notifications — hence bundling this with the notifications work rather than treating it as fully separate.
 
 ## Local combined deployment task (frontend + backend) for QA testing
 
@@ -20,21 +30,23 @@ For QA testing from a local machine, it'd help to have one task (or `docker-comp
 
 Would need: a `docker-compose.yml` (net new — none exists today) or an equivalent `mise` task that starts both pieces together, plus a decision on whether the frontend side runs via `pnpm dev` (fast iteration) or a built/served `dist` (closer to production).
 
-## OAuth sign-in (Google + Apple), alongside OTP
+## Identity via Cloudflare Access (replaces the Google + Apple OAuth plan)
 
-Deferred since the original plan (`.kilo/plans/feature_requests.md`'s Phase 3 polish); PocketBase has built-in OAuth2 support for both providers, so this is real but bounded work — **estimate: half a day to a day of hands-on work**, plus external setup time that isn't really "work," just waiting (Apple Developer Program enrollment/approval in particular can take a day or two if not already enrolled).
+Supersedes the original "OAuth sign-in (Google + Apple), alongside OTP" idea from the plan (`.kilo/plans/feature_requests.md`'s Phase 3 polish) — see `openspec/changes/refine-oauth-sign-in/` for the full proposal. Decision: **route all authentication through Cloudflare Zero Trust Access**, placed in front of both the frontend and API hostnames, instead of adding OAuth2 providers to PocketBase directly.
 
-**A real design conflict to resolve first, not just an implementation detail:** `identity`'s "Account creation is admin-managed, no self-service" requirement doesn't hold automatically once OAuth is added — PocketBase's default OAuth2 flow auto-creates a `users` record for *anyone* who successfully authenticates with Google/Apple, which is exactly the self-service signup this app deliberately doesn't want. Options:
-- Accept OAuth as a second, legitimate self-service path (a policy change to the spec, not just code) — probably wrong for a small family app that wants to control who gets in.
-- Add an `onRecordBeforeCreateRequest` hook on `users` that rejects auto-created OAuth signups unless the email is already pre-approved somehow (e.g. an admin-managed allowlist collection) — real net-new code, not configuration, roughly the same shape as the `room_assignments` validation hook this change already removed.
+- **Login methods:** Google and Access's built-in email **one-time PIN** (reproduces today's passwordless flow, now handled at Cloudflare's edge instead of via PocketBase + Resend/SMTP). More providers — e.g. the Pocket ID instance already running at `id.huskytown.net` — can be added later purely via Cloudflare dashboard config, no app code change needed.
+- **Apple dropped entirely** — its only justification was parity with Google, which doesn't outweigh the $99/yr Apple Developer Program membership and the extra setup friction (Services ID, domain/redirect config, signing key) it alone required.
+- **Fixes the design conflict the original plan flagged:** `identity`'s "Account creation is admin-managed, no self-service" requirement used to break the moment any OAuth provider auto-created a `users` record for anyone who authenticated. Now the allowlist is a Cloudflare Zero Trust **List** (type: email), referenced by both Access Applications' policies — nobody reaches PocketBase's auto-provisioning at all unless their email is already on the List, so no PocketBase-side allowlist hook is needed.
+- **PocketBase's role narrows to one bridge**, regardless of how many login methods Cloudflare offers upstream: verify the incoming Cloudflare Access JWT (against Cloudflare's published JWKS) and map the verified email onto a `users` record, creating one on first sign-in if none exists.
+- **Retires** PocketBase's native OTP sign-in and its use of the Resend/SMTP wiring for auth emails (the Resend relay itself stays — it's reused for the activity-notification and invite emails above).
+- **Considered and rejected:** Cloudflare Access's [External Evaluation](https://developers.cloudflare.com/cloudflare-one/access-controls/policies/external-evaluation/) policy rule, which could let PocketBase's own `users` collection be the allowlist source directly. Rejected because it would put every sign-in on PocketBase's critical path (PocketBase is a scale-to-zero Railway service — a cold instance would add latency/timeout risk to the access decision itself) and requires implementing Cloudflare's request-signature verification, which is exactly the kind of custom auth code this change is trying to eliminate.
 
 **External setup, not code:**
-- Google: OAuth Client ID/Secret from Google Cloud Console, consent screen basics. Can stay in "Testing" mode (no Google review needed) as long as the family's actual emails are added as test users — avoids the verification-review overhead entirely at this scale.
-- Apple: needs an active Apple Developer Program membership ($99/yr) if not already enrolled, a Services ID, Sign In with Apple domain/redirect configuration, and a signing key for the client secret JWT. Meaningfully more setup friction than Google, and the only one with a hard dollar cost.
+- Cloudflare Zero Trust: create two Access Applications (frontend and API hostnames in the `huskytown.net` zone), enable the Google and one-time-PIN login methods, create one Zero Trust email List with the family's addresses, and reference it in both Applications' policies.
+- Google: OAuth Client ID/Secret from Google Cloud Console, consent screen basics. Can stay in "Testing" mode (no Google review needed) as long as the family's actual emails are added as test users.
 
-**Code work, once the design question above is settled:**
-- Migration change enabling `oauth2` on the `users` collection with both providers' client id/secret read from env vars (same pattern as `RESEND_TOKEN`).
-- "Sign in with Google" / "Sign in with Apple" buttons in `SignInForm.tsx` calling `pb.collection('users').authWithOAuth2({ provider: ... })` — the JS SDK handles the popup/redirect flow, and the resulting session slots into the existing `pb.authStore` handling unchanged.
-- The pre-approval hook from above, if that's the direction chosen.
-- OAuth redirect callbacks need a real HTTPS domain to test against (Apple in particular doesn't play well with `localhost`), so meaningful end-to-end testing has to happen against the deployed Railway/Cloudflare domains, not local dev.
+**Code work:**
+- A `pb_hooks` bridge that verifies the Cloudflare Access JWT and maps/auto-provisions the `users` record.
+- Remove PocketBase's native OTP config and `SignInForm.tsx`'s OTP input UI, replacing it with a redirect into the Cloudflare Access-gated flow.
+- Needs a real domain under Cloudflare's proxy to test against — Access doesn't gate `localhost` — so meaningful end-to-end testing happens against the deployed Railway/Cloudflare domains, not local dev.
 
