@@ -1,5 +1,8 @@
-# Pinned to the same PocketBase version as mise.toml's [tools] pocketbase
-# entry, so local dev and this deployed image run identical PocketBase code.
+# PB_VERSION is normally supplied by Railway at build time, forwarded from
+# the PB_VERSION service variable that `mise run pb:deploy` sets from this
+# repo's mise.toml [tools] pocketbase entry - so local dev and this deployed
+# image run identical PocketBase code. The default below is only a fallback
+# for a manual `docker build` with no PB_VERSION variable set.
 FROM alpine:3.20
 ARG PB_VERSION=0.40.2
 

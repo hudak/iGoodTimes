@@ -11,8 +11,21 @@ run = "env -u RESEND_TOKEN pocketbase serve --dev --dir ./pocketbase/pb_data_loc
 description = "Run PocketBase locally with the repo's migrations+hooks (Admin UI at http://127.0.0.1:8090/_/). --dev prints OTP codes to this log since no SMTP is configured locally."
 
 [tasks."pb:deploy"]
-run = "cd pocketbase && railway up --service goodtimes-pocketbase"
-description = "Deploy the PocketBase service to Railway"
+run = '''
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Single-source the deployed PocketBase version from this file's [tools]
+# pocketbase entry: resolve mise's installed path and take its basename,
+# rather than duplicating the version number in the Dockerfile. Railway
+# forwards a service variable to a matching Dockerfile `ARG` at build time,
+# so this makes the pocketbase/Dockerfile's `ARG PB_VERSION` track mise.toml.
+PB_VERSION=$(basename "$(mise where pocketbase)")
+railway variable set PB_VERSION="$PB_VERSION" --service goodtimes-pocketbase --skip-deploys
+
+cd pocketbase && railway up --service goodtimes-pocketbase "$@"
+'''
+description = "Deploy the PocketBase service to Railway, syncing PB_VERSION (pinned in mise.toml's [tools] pocketbase entry) to Railway so the Dockerfile build arg matches. Extra args (e.g. --detach) are passed through to `railway up`."
 
 [tasks."fe:serve"]
 run = "cd beach-weeks && pnpm install && VITE_POCKETBASE_URL=http://127.0.0.1:8090 pnpm dev"

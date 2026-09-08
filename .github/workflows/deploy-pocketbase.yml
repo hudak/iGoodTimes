@@ -1,12 +1,13 @@
 name: Deploy PocketBase to Railway
 
-on:
+'on':
   push:
-    branches: [main]
+    branches:
+      - main
     paths:
-      - "pocketbase/**"
-      - "mise.toml"
-      - ".github/workflows/deploy-pocketbase.yml"
+      - pocketbase/**
+      - mise.toml
+      - .github/workflows/deploy-pocketbase.yml
 
 jobs:
   deploy:
@@ -20,7 +21,6 @@ jobs:
       - uses: jdx/mise-action@v2
 
       - name: Deploy to Railway
-        working-directory: pocketbase
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-        run: railway up --service goodtimes-pocketbase --detach
+        run: mise run pb:deploy -- --detach
