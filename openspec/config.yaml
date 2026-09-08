@@ -16,6 +16,12 @@ schema: spec-driven
 #     proposal:
 #       - Keep proposals under 500 words
 #       - Always include a "Non-goals" section
+
+rules:
+  proposal:
+    - After writing proposal.md, stop and wait for the user to review and
+      approve it before creating design.md, tasks.md, or any spec deltas.
+      Do not continue the artifact loop automatically.
 #     tasks:
 #       - Break tasks into chunks of max 2 hours
 
