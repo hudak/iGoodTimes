@@ -1,12 +1,15 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { ClientResponseError } from 'pocketbase';
 import type { RecordModel } from 'pocketbase';
 import { pb } from '../services/pocketbaseClient';
+import { NotApprovedError } from './NotApprovedError';
 
 interface AuthContextValue {
   user: RecordModel | null;
   isAuthenticated: boolean;
   requestOtp: (email: string) => Promise<string>;
   confirmOtp: (otpId: string, code: string) => Promise<void>;
+  signInWithGoogle: () => Promise<void>;
   signOut: () => void;
 }
 
@@ -44,13 +47,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await pb.collection('users').authWithOTP(otpId, code);
   }
 
+  async function signInWithGoogle(): Promise<void> {
+    try {
+      await pb.collection('users').authWithOAuth2({ provider: 'google' });
+    } catch (err) {
+      // The guard hook's ForbiddenError surfaces here as a 403. Anything else
+      // (network failure, cancelled popup, provider error) rethrows unchanged
+      // so the caller can treat it generically.
+      if (err instanceof ClientResponseError && err.status === 403) {
+        throw new NotApprovedError();
+      }
+      throw err;
+    }
+  }
+
   function signOut(): void {
     pb.authStore.clear();
   }
 
   return (
     <AuthContext.Provider
-      value={{ user, isAuthenticated: !!user, requestOtp, confirmOtp, signOut }}
+      value={{ user, isAuthenticated: !!user, requestOtp, confirmOtp, signInWithGoogle, signOut }}
     >
       {children}
     </AuthContext.Provider>

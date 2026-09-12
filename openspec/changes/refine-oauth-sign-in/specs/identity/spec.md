@@ -28,8 +28,8 @@ The system SHALL let an existing account holder sign in without ever entering a 
 The system SHALL only allow new accounts to be created by an admin action; there SHALL be no self-service account creation.
 
 #### Scenario: Admin creates an account
-- **WHEN** an admin invites a person by email
-- **THEN** that person can complete sign-in using the invite, and a corresponding account record is created for them automatically
+- **WHEN** an admin adds a person by entering their email (creating their `users` record)
+- **THEN** that person can sign in with that email using any available method, and no account is created as a side effect of their sign-in
 
 #### Scenario: No self-service signup is offered
 - **WHEN** an unauthenticated visitor looks for a way to create their own account
