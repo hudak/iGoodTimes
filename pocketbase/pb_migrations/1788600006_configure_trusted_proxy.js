@@ -6,14 +6,14 @@ migrate((app) => {
   // and the follow-up POST. PocketBase then rejects the OAuth2 realtime
   // subscription with "Invalid realtime client." (apis/realtime.go), and the
   // OAuth2 redirect handler's identical IP check would fail too - so Google
-  // sign-in cannot complete. Trusting X-Forwarded-For makes RealIP() resolve to
-  // the actual client IP consistently. useLeftmostIP stays false because
-  // Railway appends the client IP, so the right-most entry is the trusted one
-  // (the left-most would be spoofable). See design.md D7.
+  // sign-in cannot complete. Trust X-Real-IP: Railway's edge sets it to a
+  // single, stable client IP. X-Forwarded-For was tried first but its right-most
+  // entry varies per edge (intermittent 400s) and its left-most entry is
+  // spoofable. See design.md D7.
   const settings = app.settings();
   settings.trustedProxy = {
     ...settings.trustedProxy,
-    headers: ["X-Forwarded-For"],
+    headers: ["X-Real-IP"],
     useLeftmostIP: false,
   };
   return app.save(settings);
