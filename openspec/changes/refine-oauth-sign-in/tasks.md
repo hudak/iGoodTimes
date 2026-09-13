@@ -1,7 +1,7 @@
 ## 1. Google Cloud setup (external, no code)
 
 - [x] 1.1 Create an OAuth 2.0 Client ID in Google Cloud Console for this app, requesting only the `email`, `profile`, and `openid` scopes, and verify the client ID/secret are generated.
-- [ ] 1.2 Publish the OAuth consent screen to **Production** (per design.md D6 — not Testing, which would require every family member to be added as a Google Cloud test user) and verify the consent screen's publishing status shows "In production." — **deferred by owner (client still in Testing)**.
+- [x] 1.2 Settle the consent screen's publishing requirement (design.md D6). **Resolved without publishing**: because the app requests only basic identity scopes (`email`/`profile`/`openid`), Google allows any Google account to authorize it while it is still in Testing — no test-user allowlist, no warning, no 7-day expiry. Verified empirically against production: a Google Workspace account not on the `users` roster (`nick@cflfreethought.org`) completed Google's authorization and was refused by the guard with the expected 403, and `railway logs` shows `[oauth2-guard] refused unapproved sign-in nick@cflfreethought.org`. Decision: stay in Testing; no publish (and therefore no brand verification) step is required.
 - [x] 1.3 Set `GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_OAUTH_CLIENT_SECRET` as env vars on the Railway PocketBase service only (never committed, never set in local `mise.local.toml` — local dev is meant to stay OTP-only) and verify they appear in Railway's service variables.
 
 ## 2. PocketBase: Google provider config
