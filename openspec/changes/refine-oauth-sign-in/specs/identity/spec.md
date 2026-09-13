@@ -11,6 +11,17 @@ The system SHALL require every sign-in attempt, regardless of which authenticati
 - **WHEN** an additional sign-in method (e.g. another federated provider) is enabled
 - **THEN** authenticating with it still only succeeds for someone who already has an account, with no new account created as a side effect
 
+### Requirement: Sign-in sends only the one-time code, never a security-alert email
+The system SHALL send exactly one email during any sign-in: the one-time code an account holder must enter to complete OTP sign-in. It SHALL NOT send any "new device" or "login from a new location" security-alert email, regardless of whether the device or location is new.
+
+#### Scenario: Signing in from a new device
+- **WHEN** an existing account holder signs in from a device or location the system has not seen before
+- **THEN** no security-alert email is sent, and sign-in completes normally
+
+#### Scenario: OTP sign-in still delivers its code
+- **WHEN** an existing account holder requests to sign in with their email
+- **THEN** the one-time code email is still delivered, and that is the only email that sign-in attempt produces
+
 ## MODIFIED Requirements
 
 ### Requirement: Passwordless sign-in
